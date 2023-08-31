@@ -71,7 +71,7 @@ it's learned or it's predicted implicitly from the $\mu$ embedding (e.g. l2-norm
 ([Scott et al. 2021](https://arxiv.org/abs/2103.15718)). Common strategies of creating $\sigma$-targets
 include ambiguity through label entropy or augmentation like i.e. croping or bluring images 
 ([Wu & Goodman 2020](https://arxiv.org/abs/2010.02038)). Often target $\sigma$ values are created using
-values in range of $p \in [0,1]$. It is likely that models will output values of other ranges. In these 
+$\sigma \in [0,1]$. It is likely that models will output values of other ranges. In these 
 cases it's useful to use a rank correlation metric. Here is a little example:
 
 ![Rank correlation over simulated sigmas](figures/rank_corr_over_simulated_sigmas.png)
