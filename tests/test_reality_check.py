@@ -1,32 +1,14 @@
-import numpy as np
-import pytest
-import torch
 from matplotlib import pyplot as plt
-from torch import Size
-from torch.distributions import Uniform
 
 from src.ranking_metrics.embed_metrics import ClassBasedEmbeddingMetrics
 
 
-def quarter(n) -> Size:
-    return Size((n // 4, 1))
-
-
-def half(n) -> Size:
-    return Size((n // 2, 1))
-
-
-@pytest.fixture
-def n() -> int:
-    return 2000
-
-
-def _example_helper(d, c, example_id, ks=(1, 10)):
+def _example_helper(d, c, example_id, ks=(1, 10)) -> None:
     print(f"Number of samples used in exmaple {example_id}: {d.shape[0]}")
     m = ClassBasedEmbeddingMetrics(d.shape[-1], ks)
-    scores = m.forward(d, c, ignore_self=False)
+    scores = m.forward(d, c, ignore_self=True)
 
-    cc = ["#8ecae6ff", "#ffb703ff"]
+    cc = ["#219ebcff", "#ffb703ff"]
     print_scores = ", ".join((f"{k}: {(float(v) * 100):.1f}%" for k, v in scores.items()))
 
     _ = plt.figure(figsize=(10, 7))
@@ -37,41 +19,16 @@ def _example_helper(d, c, example_id, ks=(1, 10)):
     plt.close()
 
 
-def test_class_reality_check_example_1(n):
-    y_dist = Uniform(0.0, 1.0)
-    x_dist_1 = Uniform(-3.0, -2.0)
-    x_dist_2 = Uniform(-1.0, 0.0)
-    x_dist_3 = Uniform(0.0, 1.0)
-    x_dist_4 = Uniform(2.0, 3.0)
-    d1 = torch.cat([x_dist_1.sample(quarter(n)), y_dist.sample(quarter(n))], dim=-1)
-    d2 = torch.cat([x_dist_2.sample(quarter(n)), y_dist.sample(quarter(n))], dim=-1)
-    d3 = torch.cat([x_dist_3.sample(quarter(n)), y_dist.sample(quarter(n))], dim=-1)
-    d4 = torch.cat([x_dist_4.sample(quarter(n)), y_dist.sample(quarter(n))], dim=-1)
-    d = torch.cat([d1, d2, d3, d4], dim=0)
-    c = np.zeros((d.shape[0],), dtype="uint8")
-    c[d[:, 0] > 0.0] = 1
+def test_class_reality_check_example_1(musgrave_example_1):
+    d, c = musgrave_example_1
     _example_helper(d, c, 1)
 
 
-def test_class_reality_check_example_2(n):
-    y_dist = Uniform(0.0, 1.0)
-    x_dist_1 = Uniform(-1.0, 0.0)
-    x_dist_2 = Uniform(0.0, 1.0)
-    d1 = torch.cat([x_dist_1.sample(half(n)), y_dist.sample(half(n))], dim=-1)
-    d2 = torch.cat([x_dist_2.sample(half(n)), y_dist.sample(half(n))], dim=-1)
-    d = torch.cat([d1, d2], dim=0)
-    c = np.zeros((d.shape[0],), dtype="uint8")
-    c[d[:, 0] > 0.0] = 1
+def test_class_reality_check_example_2(musgrave_example_2):
+    d, c = musgrave_example_2
     _example_helper(d, c, 2)
 
 
-def test_class_reality_check_example_3(n):
-    y_dist = Uniform(0.0, 1.0)
-    x_dist_1 = Uniform(-3.0, -1.0)
-    x_dist_2 = Uniform(1.0, 3.0)
-    d1 = torch.cat([x_dist_1.sample(half(n)), y_dist.sample(half(n))], dim=-1)
-    d2 = torch.cat([x_dist_2.sample(half(n)), y_dist.sample(half(n))], dim=-1)
-    d = torch.cat([d1, d2], dim=0)
-    c = np.zeros((d.shape[0],), dtype="uint8")
-    c[d[:, 0] > 0.0] = 1
+def test_class_reality_check_example_3(musgrave_example_3):
+    d, c = musgrave_example_3
     _example_helper(d, c, 3)

@@ -1,7 +1,11 @@
+from typing import Any
+
 from faiss import IndexFlat
 import numpy as np
 import torch
 from torch import nn
+
+from ranking_metrics.metrics import recall_at, mean_average_precision_at_r, r_precision, sizes_per_class
 
 
 class ClassBasedEmbeddingMetrics(nn.Module):
@@ -23,17 +27,34 @@ class ClassBasedEmbeddingMetrics(nn.Module):
         self.r = r
         self.knn_index = IndexFlat(dim)
 
-    def forward(self, d, c, ignore_self=True):
-        """Calculates recall@{k1, k2, ... kn} and MAP@R for the embedding space d.
+    @staticmethod
+    def get_binary_hits(c, inds) -> np.ndarray:
+        """
 
-        :param d:   Embedding space based on some network or algorithm. Dims: (n, z_dim)
-        :param c:   Classes/labels to map embedding vectors to source classes. Dims: (n,)
+        :param c: Classes/labels to map embedding vectors to source classes. Dims: (n,)
+        :param inds: Indices of nearest neighbors per sample.
+        :return: Binary hits per sample and nearest neighbors. Dims: (n, r)
+        """
+        binary_hits = []
+        for i, idx in enumerate(inds):
+            # Check if the class of nearest neighbors are correct (hit)
+            hits = np.array(c[idx] == c[i]).astype("int8")
+            binary_hits.append(hits)
+        binary_hits = np.stack(binary_hits)
+
+        return binary_hits
+
+    def forward(self, d, c, ignore_self=True) -> dict[str, Any]:
+        """Calculates recall@{k1, k2, ... kn}, r-precision and MAP@R for the embedding space d.
+
+        :param d: Embedding space based on some network or algorithm. Dims: (n, z_dim)
+        :param c: Classes/labels to map embedding vectors to source classes. Dims: (n,)
         :param ignore_self: Wether to ignore the queried vector itself or not. Default: True.
         :return: A dictionary for each "recall@{k1, k2, ... kn}" and "MAP@R". Values are floats.
         """
 
         self.knn_index.add(d)  # noqa
-        c_sizes = self._get_class_sizes(c)
+        c_sizes = sizes_per_class(c)
         r = int(min(c_sizes)) - 1 if self.r is None else self.r
         r = r + 1 if ignore_self else r
         _, inds = self.knn_index.search(d, r)  # noqa
@@ -46,51 +67,16 @@ class ClassBasedEmbeddingMetrics(nn.Module):
             inds = inds[:, 1:]
 
         results_dict = {}
-        binary_hits = []
-        for i, idx in enumerate(inds):
-            # Check if the class of nearest neighbors are correct (hit)
-            hits = np.array(c[idx] == c[i]).astype("int8")
-            binary_hits.append(hits)
-        binary_hits = np.stack(binary_hits)
+        binary_matches = self.get_binary_hits(c, inds)
 
         # Compute precision@K entries
         for k in self.ks:
-            results_dict[f"recall@{k}"] = (binary_hits[:, :k].sum(-1) / k).mean()
+            results_dict[f"recall@{k}"] = recall_at(binary_matches, k).mean().item()
 
-        mapr_classwise, r_precisions = [], []
-        for c_idx, _ in enumerate(c_sizes):
-            # Samples that correspond to this class
-            class_mask = c == c_idx
-
-            # Add the R-Precision for this class r/R (r beeing number
-            # of matching nearest neighbors and R the number of samples
-            # corresponding to observed class)
-            r_precisions.append(binary_hits[class_mask, : sum(class_mask)].mean())
-
-        mapr_classwise = np.array(
-            [
-                np.array(
-                    [
-                        hit[: r_idx + 1].mean() if hit[r_idx] == 1 else 0.0
-                        for r_idx in range(0, r - 1)
-                    ]
-                ).mean()
-                for i, hit in enumerate(binary_hits)
-            ]
-        )
-        r_precisions = np.stack(r_precisions, axis=0)
-        # Now average over all classes
-        results_dict["map@r"] = mapr_classwise.mean()
-        results_dict["r-precision"] = r_precisions.mean()
+        # Compute precision@K entries
+        rprec = r_precision(binary_matches, c)
+        mapr = mean_average_precision_at_r(binary_matches, r - ignore_self)
+        results_dict["r-precision"] = rprec.mean()
+        results_dict["map@r"] = mapr.mean()
 
         return results_dict
-
-    @staticmethod
-    def _get_class_sizes(c) -> np.ndarray:
-        """Private function to find the sizes of each class in c.
-        Each class c corresponds to the number of samples with this class c_n.
-        Also very useful to find R per class when self.r is None.
-
-        :return: Numpy array containing the number of samples per class. Dim: (c, n_c)
-        """
-        return np.array([len(c[c == cid]) for cid in range(c.max() + 1)])
