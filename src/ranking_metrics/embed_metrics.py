@@ -1,11 +1,14 @@
-from typing import Any
-
 from faiss import IndexFlat
 import numpy as np
 import torch
-from torch import nn
+from torch import nn, Tensor
 
-from ranking_metrics.metrics import recall_at, mean_average_precision_at_r, r_precision, sizes_per_class
+from ranking_metrics.metrics import (
+    recall_at,
+    mean_average_precision_at_r,
+    r_precision,
+    sizes_per_class,
+)
 
 
 class ClassBasedEmbeddingMetrics(nn.Module):
@@ -28,7 +31,7 @@ class ClassBasedEmbeddingMetrics(nn.Module):
         self.knn_index = IndexFlat(dim)
 
     @staticmethod
-    def get_binary_hits(c, inds) -> np.ndarray:
+    def get_binary_hits(c, inds) -> Tensor:
         """
 
         :param c: Classes/labels to map embedding vectors to source classes. Dims: (n,)
@@ -42,9 +45,9 @@ class ClassBasedEmbeddingMetrics(nn.Module):
             binary_hits.append(hits)
         binary_hits = np.stack(binary_hits)
 
-        return binary_hits
+        return torch.from_numpy(binary_hits).float()
 
-    def forward(self, d, c, ignore_self=True) -> dict[str, Any]:
+    def forward(self, d, c, ignore_self=True) -> dict[str, float]:
         """Calculates recall@{k1, k2, ... kn}, r-precision and MAP@R for the embedding space d.
 
         :param d: Embedding space based on some network or algorithm. Dims: (n, z_dim)
@@ -71,7 +74,7 @@ class ClassBasedEmbeddingMetrics(nn.Module):
 
         # Compute precision@K entries
         for k in self.ks:
-            results_dict[f"recall@{k}"] = recall_at(binary_matches, k).mean().item()
+            results_dict[f"recall@{k}"] = recall_at(binary_matches, k, aggregate=True).item()
 
         # Compute precision@K entries
         rprec = r_precision(binary_matches, c)

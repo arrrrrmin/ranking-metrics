@@ -2,10 +2,13 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from torch import Tensor, Size
-from torch.distributions import Normal, Uniform, Distribution
+from torch.distributions import Normal, Uniform, Distribution, MultivariateNormal, Pareto
 
 from ranking_metrics.metrics import spearmanr_corr
 from src.ranking_metrics.uncertainty import UncertaintyMetrics
+
+
+cc = ["#219ebcff", "#ffb703ff"]
 
 
 def simulate_confidences(d, good_quality) -> tuple[Tensor, Distribution]:
@@ -28,7 +31,6 @@ def _test_confidence_example_2_basic(musgrave_example_2):
     corrupted_confs = 1.0
     confs[corrupt_inds] = corrupted_confs
 
-    cc = ["#8ecae6ff", "#ffb703ff"]
     _ = plt.figure(figsize=(10, 7))
     plot_title = (
         f"Example {example_id} of Musgrave et al. 2020 with simulated confidences and errors."
@@ -109,14 +111,14 @@ def test_uncertainty_example_2_spearman(musgrave_example_2):
     n_confs = 20
     scores, corrupt_prob_confs = [], []
     for i in range(1, n_confs + 1):
-        corrupt_prob_conf = float(i) / n_confs  # Probabilistic interval
+        corrupt_prob_conf = float(i) / n_confs
         corrupt_prob_confs.append(corrupt_prob_conf * sig_scale)
-        confs[corrupt_inds] = corrupt_prob_conf * sig_scale  # Scaled model interval
+        confs[corrupt_inds] = corrupt_prob_conf * sig_scale
         rcorr = spearmanr_corr(confs, gt_confs)
         scores.append(rcorr)
 
     fig, _ = plt.subplots(figsize=(10, 6))
-    cc = ["#219ebcff", "#ffb703ff"]
+
     labels = ["Rank correlation", "Simulated conf probabilities"]
     plt_title = (
         "Spearman corr. between confidences and scaled model $\hat{\sigma}$ \n $\hat{\sigma}$ scaled by "

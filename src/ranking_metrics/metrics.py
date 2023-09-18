@@ -39,9 +39,11 @@ def r_precision(binary_matches, c) -> Tensor:
     return precisions
 
 
-def recall_at(binary_matches, k) -> Tensor:
+def recall_at(binary_matches, k, aggregate=False) -> Tensor:
     # Calculate the recall@k metric.
     recalls = binary_matches[:, :k].max(1)[0]
+    if aggregate:
+        recalls = recalls.mean()
 
     return recalls
 
